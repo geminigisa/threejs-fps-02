@@ -44,14 +44,12 @@ export const COLLIDERS = [
   { x: 22, z: 4, w: 2.4, d: 6, h: 2.6, kind: 'container' },
   { x: 26, z: -4, w: 2, d: 2, h: 1.2, kind: 'crate' },
   { x: 18, z: -14, w: 2.4, d: 5, h: 2.6, kind: 'container' },
-  // mid cover
-  { x: 0, z: 4, w: 3, d: 2, h: 1.2, kind: 'crate' },
+  // mid cover (kept off the centre line, so the mid route is clear)
+  { x: -6, z: 6, w: 3, d: 2, h: 1.2, kind: 'crate' },
   { x: -3, z: -2, w: 2, d: 2, h: 1.2, kind: 'crate' },
-  { x: 4, z: 2, w: 2, d: 3, h: 1.2, kind: 'crate' },
-  // spawn cover
-  { x: 0, z: 20, w: 4, d: 2, h: 1.2, kind: 'crate' },
+  { x: 6, z: -2, w: 2, d: 3, h: 1.2, kind: 'crate' },
+  // spawn cover, off to the sides — never on a spawn point or a route
   { x: -8, z: 19, w: 2, d: 2, h: 1.2, kind: 'crate' },
-  { x: 0, z: -20, w: 4, d: 2, h: 1.2, kind: 'crate' },
   { x: 8, z: -19, w: 2, d: 2, h: 1.2, kind: 'crate' },
 ];
 
@@ -66,27 +64,30 @@ export const SPAWNS = {
 };
 
 // Waypoint graph: nodes bots walk. edges are bidirectional, listed once.
+// Every node stands clear of every collider (checked by /tmp/check-graph),
+// and no edge's straight line crosses a solid box, so a bot following the
+// graph never walks into a wall it cannot slide around.
 export const NODES = [
   // id, x, z, tags
   [0, -3, 20, 'spawnA'], [1, 3, 20, 'spawnA'],
   [2, -8, 14, 'laneW'], [3, -20, 10, 'laneW'], [4, -24, 0, 'laneW'], [5, -22, -10, 'laneW'],
   [6, 0, 14, 'laneM'], [7, 0, 4, 'laneM'], [8, 0, -4, 'laneM'], [9, 0, -12, 'laneM'],
   [10, 8, 14, 'laneE'], [11, 20, 10, 'laneE'], [12, 24, 0, 'laneE'], [13, 22, -10, 'laneE'],
-  [14, 24, -14, 'siteA'], [15, 20, -18, 'siteA'], [16, 28, -18, 'siteA'],
-  [17, -24, -14, 'siteB'], [18, -20, -18, 'siteB'], [19, -28, -18, 'siteB'],
+  [14, 24, -10, 'siteA'], [15, 15, -11, 'siteA'], [16, 30, -10, 'siteA'],
+  [17, -24, -10, 'siteB'], [18, -20, -18, 'siteB'], [19, -28, -10, 'siteB'],
   [20, -3, -20, 'spawnB'], [21, 3, -20, 'spawnB'],
   [22, -10, 0, 'mid'], [23, 10, 0, 'mid'],
-  [24, -20, -18, 'holdB'], [25, 20, -18, 'holdA'],
+  [24, -20, -10, 'holdB'], [25, 20, -10, 'holdA'],
   [26, -14, -4, 'laneW'], [27, 14, -4, 'laneE'],
-  [28, -8, -14, 'laneW'], [29, 8, -14, 'laneE'],
+  [28, -6, -14, 'laneW'], [29, 6, -14, 'laneE'],
 ];
 export const EDGES = [
-  [0, 2], [0, 6], [1, 6], [1, 10], [2, 3], [3, 4], [3, 26], [4, 5], [4, 22],
-  [5, 17], [5, 28], [6, 7], [7, 8], [7, 22], [7, 23], [8, 9], [8, 26], [8, 27],
-  [9, 20], [9, 28], [9, 29], [10, 11], [11, 12], [11, 27], [12, 13], [12, 23],
-  [13, 14], [13, 29], [14, 15], [14, 16], [15, 25], [16, 25], [17, 18], [17, 19],
-  [18, 24], [19, 24], [20, 9], [20, 24], [21, 9], [21, 25], [22, 26], [23, 27],
-  [24, 28], [25, 29], [26, 28], [27, 29], [2, 22], [10, 23], [6, 2], [6, 10],
+  [0, 2], [0, 6], [1, 6], [1, 10], [2, 3], [3, 26], [4, 5], [4, 22],
+  [5, 17], [6, 7], [7, 8], [7, 22], [7, 23], [8, 9], [8, 26], [8, 27],
+  [9, 20], [9, 28], [9, 29], [10, 11], [11, 27], [12, 13], [12, 23],
+  [13, 14], [14, 16], [14, 25], [15, 14], [16, 25], [17, 19], [17, 24],
+  [18, 24], [19, 24], [20, 9], [21, 9], [22, 26], [23, 27],
+  [24, 28], [25, 29], [6, 2], [6, 10],
 ];
 
 // ---- building the scene from the same table above ----

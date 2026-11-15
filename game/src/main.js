@@ -185,7 +185,6 @@ function step(dt) {
     for (const e of S.entities) updateWeapon(e, dt);
     const bombEvent = updateBomb(dt, keys);
     if (bombEvent === 'detonated') { /* rounds.js ends the round on its tick */ }
-    updateRounds(dt);
     // Player trigger: auto weapons fire while held; semi-autos on the edge.
     if (S.mode === 'play' && p.alive) {
       const w = WEAPONS[p.weapon];
@@ -200,6 +199,11 @@ function step(dt) {
       if (p.moving && p.onGround && S.time - stepSoundT > 0.38) { sfx.step(); stepSoundT = S.time; }
     }
   }
+  // The round clock runs in every mode: buy counts down to play, play ends
+  // by elimination/plant/time, and end advances to the next round. (It must
+  // NOT live inside the play/buy block above — that stranded the game in
+  // 'end' forever after round 1.)
+  updateRounds(dt);
   // Expire smoke visuals with their sim clock.
   for (const [rec, g] of smokeSprites) {
     if (S.time > rec.until) { scene.remove(g); smokeSprites.delete(rec); }
