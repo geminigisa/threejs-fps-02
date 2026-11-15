@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<!-- CINDERWORKS — Foundry 9: a 5v5 round-based tactical FPS in three.js.
+  Two teams, short rounds, money between rounds, a charge to plant and
+  defuse. Attackers (EMBERS, amber) plant the charge at Furnace (site A)
+  or Casting (site B); defenders (WARDENS, blue) hold the sites and defuse.
+  Single-player against nine bots with routes, sight, hearing and reaction
+  time. Click to play: WASD move, mouse look, click fire, R reload, 1/2
+  weapons, 4 smoke, E plant/defuse, B buy menu, Ctrl crouch, Space jump. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CINDERWORKS — Foundry 9 | 5v5 tactical FPS</title>
+<script type="importmap">{"imports":{"three":"./vendor/three/three.module.min.js"}}</script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #14161a;
+    font-family: "Segoe UI", system-ui, sans-serif; color: #e9e6df; }
+  #game { display: block; width: 100%; height: 100%; }
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; }
+  /* crosshair: four lines whose gap follows weapon spread */
+  #crosshair { position: absolute; left: 50%; top: 50%; --gap: 8px; }
+  #crosshair i { position: absolute; background: #e9e6df; box-shadow: 0 0 2px #000; }
+  #crosshair i:nth-child(1) { left: -1px; top: calc(-1 * var(--gap) - 7px); width: 2px; height: 7px; }
+  #crosshair i:nth-child(2) { left: -1px; top: var(--gap); width: 2px; height: 7px; }
+  #crosshair i:nth-child(3) { top: -1px; left: calc(-1 * var(--gap) - 7px); width: 7px; height: 2px; }
+  #crosshair i:nth-child(4) { top: -1px; left: var(--gap); width: 7px; height: 2px; }
+  #hitmarker { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    font-size: 26px; font-weight: 700; opacity: 0; text-shadow: 0 0 4px #000; }
+  /* top bar: timer, score, alive pips */
+  #topbar { position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    text-align: center; text-shadow: 0 1px 3px #000; }
+  #timer { font-size: 30px; font-weight: 700; letter-spacing: 1px; }
+  #score { font-size: 15px; letter-spacing: 2px; color: #98a0a8; margin-top: 2px; }
+  #alive { font-size: 13px; letter-spacing: 3px; margin-top: 2px; }
+  #alive-a { color: #f0a830; } #alive-b { color: #4da3ff; }
+  #bomb-status { position: absolute; top: 96px; left: 50%; transform: translateX(-50%);
+    font-size: 14px; font-weight: 700; letter-spacing: 1px; text-shadow: 0 1px 3px #000; }
+  #plant-bar { position: absolute; top: 122px; left: 50%; transform: translateX(-50%);
+    width: 220px; height: 8px; background: #0008; border: 1px solid #98a0a8; display: none; }
+  #plant-fill { height: 100%; width: 0%; background: #f0a830; }
+  #hint { position: absolute; bottom: 118px; left: 50%; transform: translateX(-50%);
+    font-size: 14px; color: #f0a830; text-shadow: 0 1px 3px #000; }
+  /* bottom-left: health */
+  #health { position: absolute; left: 22px; bottom: 20px; width: 220px; text-shadow: 0 1px 3px #000; }
+  #hp-num { font-size: 34px; font-weight: 700; }
+  #armor { font-size: 12px; color: #4da3ff; letter-spacing: 2px; margin-left: 8px; }
+  #hp-track { height: 8px; background: #000a; border: 1px solid #2c323a; margin-top: 4px; }
+  #hp-bar { height: 100%; width: 100%; background: #46c07a; }
+  /* bottom-right: ammo + money */
+  #ammo { position: absolute; right: 22px; bottom: 20px; text-align: right; text-shadow: 0 1px 3px #000; }
+  #ammo-mag { font-size: 44px; font-weight: 700; line-height: 1; }
+  #ammo-res { font-size: 20px; color: #98a0a8; }
+  #weapon-name { font-size: 13px; color: #98a0a8; letter-spacing: 1px; margin-top: 2px; }
+  #money { font-size: 20px; font-weight: 700; color: #46c07a; margin-top: 4px; }
+  /* feeds */
+  #feed { position: absolute; top: 14px; right: 18px; text-align: right; font-size: 13px;
+    text-shadow: 0 1px 3px #000; line-height: 1.7; }
+  #feed .a { color: #f0a830; } #feed .b { color: #4da3ff; }
+  #radio { position: absolute; left: 18px; top: 14px; font-size: 13px; color: #98a0a8;
+    text-shadow: 0 1px 3px #000; line-height: 1.7; }
+  /* banner */
+  #banner-wrap { position: absolute; top: 32%; left: 0; right: 0; text-align: center;
+    opacity: 0; transition: opacity .4s; text-shadow: 0 2px 8px #000; pointer-events: none; }
+  #banner { font-size: 42px; font-weight: 800; letter-spacing: 4px; }
+  #banner-sub { font-size: 16px; color: #98a0a8; margin-top: 6px; letter-spacing: 1px; }
+  /* buy menu */
+  #buy-menu { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    width: 460px; background: #14161add; border: 1px solid #f0a830; padding: 18px;
+    pointer-events: auto; display: none; }
+  #buy-menu h2 { font-size: 18px; letter-spacing: 2px; margin-bottom: 4px; }
+  #buy-money { color: #46c07a; font-weight: 700; margin-bottom: 10px; }
+  .buy-item { display: flex; gap: 10px; padding: 8px; border: 1px solid #2c323a;
+    margin-bottom: 6px; cursor: pointer; font-size: 14px; align-items: baseline; }
+  .buy-item:hover { border-color: #f0a830; background: #f0a83022; }
+  .buy-item b { flex: 1; } .buy-item span { color: #46c07a; font-weight: 700; }
+  .buy-item i { color: #98a0a8; font-style: normal; font-size: 12px; }
+  /* overlays */
+  .overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    flex-direction: column; background: #0c0e11d9; text-align: center; z-index: 10; }
+  .overlay h1 { font-size: 54px; letter-spacing: 6px; color: #f0a830; }
+  .overlay h2 { font-size: 30px; letter-spacing: 3px; }
+  .overlay p { color: #98a0a8; max-width: 560px; line-height: 1.7; margin: 14px 0; font-size: 15px; }
+  .overlay button { pointer-events: auto; cursor: pointer; background: #f0a830; color: #14161a;
+    border: none; font-size: 18px; font-weight: 700; letter-spacing: 2px; padding: 12px 34px; margin-top: 8px; }
+  .overlay button:hover { background: #ffb84d; }
+  .keys { font-size: 13px; color: #98a0a8; line-height: 1.9; margin-top: 10px; }
+  .keys b { color: #e9e6df; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+  <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+  <div id="hitmarker">✕</div>
+  <div id="topbar"><div id="timer">1:40</div><div id="score">EMB 0 — 0 WRD</div>
+    <div id="alive"><span id="alive-a">●●●●●</span> &nbsp; <span id="alive-b">●●●●●</span></div></div>
+  <div id="bomb-status"></div>
+  <div id="plant-bar"><div id="plant-fill"></div></div>
+  <div id="hint"></div>
+  <div id="health"><span id="hp-num">100</span><span id="armor"></span>
+    <div id="hp-track"><div id="hp-bar"></div></div></div>
+  <div id="ammo"><span id="ammo-mag">30</span><span id="ammo-res"> / 90</span>
+    <div id="weapon-name">FR-9 Furnace Rifle</div><div id="money">$800</div></div>
+  <div id="feed"></div>
+  <div id="radio"></div>
+  <div id="banner-wrap"><div id="banner"></div><div id="banner-sub"></div></div>
+  <div id="buy-menu"><h2>BUY — FOUNDRY 9</h2><div id="buy-money">$800</div>
+    <div id="buy-items"></div>
+    <div style="font-size:12px;color:#98a0a8">Keys 1–5 or click. Round starts when the timer ends.</div></div>
+</div>
+<div class="overlay" id="overlay-start" style="display:flex">
+  <h1>CINDERWORKS</h1>
+  <h2 style="color:#e9e6df;letter-spacing:4px">FOUNDRY 9 — 5V5 TACTICAL FPS</h2>
+  <p>Night shift at the steel foundry. You are EMBERS: plant the charge at
+  <b style="color:#f0a830">Furnace (A)</b> or <b style="color:#4da3ff">Casting (B)</b>,
+  or wipe the WARDENS out. Nine bots hold lanes, hear your shots and shoot back.
+  First to 7 rounds takes the match.</p>
+  <button id="btn-start">CLICK TO PLAY</button>
+  <div class="keys"><b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> fire · <b>R</b> reload ·
+  <b>1/2</b> weapons · <b>4</b> smoke · <b>E</b> plant / defuse · <b>B</b> buy ·
+  <b>Ctrl</b> crouch · <b>Space</b> jump</div>
+</div>
+<div class="overlay" id="overlay-pause">
+  <h2>PAUSED</h2>
+  <p>Pointer lock was lost. Click resume to keep playing.</p>
+  <button id="btn-resume">RESUME</button>
+</div>
+<div class="overlay" id="overlay-end">
+  <h2 id="end-title">ROUND OVER</h2>
+  <p id="end-sub"></p>
+  <button id="btn-restart">NEXT ROUND</button>
+</div>
+<div class="overlay" id="overlay-match">
+  <h2 id="match-title">MATCH OVER</h2>
+  <p>Thanks for playing Foundry 9.</p>
+  <button id="btn-rematch">PLAY AGAIN</button>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

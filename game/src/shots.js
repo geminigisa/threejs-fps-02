@@ -48,10 +48,12 @@ export function setupShot(mode, seed) {
   } else if (mode === 'plant') {
     // The player plants the charge at site A (Furnace) while an ally covers.
     // (24,-10) is inside the site circle (6.0 m from its centre) and 3 m
-    // from the glowing furnace mouth, so the objective reads in frame.
+    // from the glowing furnace mouth. Yaw 1.2 turns the view ~69° west of
+    // north, so the furnace reads at the frame's right edge instead of
+    // filling it, with open site floor and the covering ally on the left.
     S.mode = 'play'; S.round = 2; S.scoreA = 1; S.scoreB = 1; S.timeLeft = 61;
     S.bomb.state = 'carried'; S.bomb.carrier = p; S.bomb.progress = 2.2;
-    place(p, 24, -10, 0);
+    place(p, 24, -10, 1.2);
     place(allies[0], 16, -14, -0.4);
     place(allies[1], 14, -18, 0.3);
     place(foes[0], 26, -6, Math.PI);
