@@ -69,6 +69,7 @@ export function makeEntity(id, team, bot, name, x, z, yaw) {
       hearAt: -99, hearPos: null, plan: null, site: null, role: null,
       stuckT: 0, strafeT: 0, strafeDir: 1,
       lastX: x, lastZ: z, aimErr: 0,
+      coverThrown: false, // defuse-cover smoke used this round (tactics.js)
     } : null,
     mesh: null, // three.js group, attached by main.js (rendering only)
   };
@@ -93,6 +94,7 @@ export const S = {
   shotMode: null,      // 'start' | 'fight' | 'plant' | 'buy' | null
   shotReady: false,    // set true when a screenshot frame is frozen
   shotStep: 0,
+  tactics: null,       // the round's execute plan (tactics.js) or null
   buyOpen: false,
   paused: false,
   muted: false,
@@ -109,6 +111,7 @@ export function resetMatch(seed) {
   S.entities = []; S.shots = []; S.feed = []; S.radio = []; S.smokes = [];
   S.winner = null; S.winReason = ''; S.matchWinner = null;
   S.frame = 0; S.time = 0; S.buyOpen = false; S.paused = false;
+  S.tactics = null;
   S.playerMoney = 800;
 }
 

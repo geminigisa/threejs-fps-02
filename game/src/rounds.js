@@ -21,7 +21,7 @@ function spawnAll() {
     e.hp = e.maxHp; e.alive = true; e.armor = false;
     e.reloadT = 0; e.fireT = 0; e.spread = 0; e.recoil = 0;
     e.smokesLeft = 0;
-    if (e.brain) { e.brain.state = 'advance'; e.brain.path = []; e.brain.pathI = 0; e.brain.target = null; e.brain.lastSeen = null; }
+    if (e.brain) { e.brain.state = 'advance'; e.brain.path = []; e.brain.pathI = 0; e.brain.target = null; e.brain.lastSeen = null; e.brain.coverThrown = false; }
   }
   S.smokes = [];
 }

@@ -50,11 +50,13 @@ export function buy(id) {
   return true;
 }
 
-// Bots spend simply: rifle if they can afford it, else SMG, plus smoke
-// for the carrier and armor when rich.
+// Bots spend simply: rifle if they can afford it, else SMG, then smoke,
+// then armor when rich. Smoke comes before armor: the execute needs its
+// cover in round 1, when $800 buys a smoke ($300) but not both a smoke
+// and plating ($650) — buying armor first left the team smokeless.
 export function botBuy(b) {
   if (b.money >= 2700 && b.weapon !== 'rifle') { giveWeapon(b, 'rifle'); b.money -= 2700; }
   else if (b.money >= 1500 && b.weapon !== 'smg' && b.weapon !== 'rifle') { giveWeapon(b, 'smg'); b.money -= 1500; }
-  if (b.money >= 650 && !b.armor) { b.armor = true; b.money -= 650; }
   if (b.money >= 300 && (b.smokesLeft || 0) === 0) { b.smokesLeft = 1; b.money -= 300; }
+  if (b.money >= 650 && !b.armor) { b.armor = true; b.money -= 650; }
 }

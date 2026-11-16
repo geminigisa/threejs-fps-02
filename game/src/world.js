@@ -102,11 +102,11 @@ const KIND_MAT = {
 
 export function buildWorld(scene) {
   scene.background = new THREE.Color(PAL.canvas);
-  scene.fog = new THREE.FogExp2(PAL.canvas, 0.011);
+  scene.fog = new THREE.FogExp2(PAL.canvas, 0.0085);
 
-  const hemi = new THREE.HemisphereLight(0x8fa3b8, 0x2a2118, 1.1);
+  const hemi = new THREE.HemisphereLight(0x8fa3b8, 0x2a2118, 1.55);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xffd9a0, 2.2);
+  const sun = new THREE.DirectionalLight(0xffd9a0, 2.8);
   sun.position.set(18, 30, 12);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
@@ -115,15 +115,24 @@ export function buildWorld(scene) {
   sun.shadow.camera.far = 80;
   scene.add(sun);
   // Furnace glow: the warm heart of site A.
-  const glow = new THREE.PointLight(0xff7a1f, 80, 30, 1.6);
+  const glow = new THREE.PointLight(0xff7a1f, 110, 30, 1.6);
   glow.position.set(24, 3.2, -13);
   scene.add(glow);
-  const cool = new THREE.PointLight(0x6fb0ff, 30, 22, 1.6);
+  const cool = new THREE.PointLight(0x6fb0ff, 40, 22, 1.6);
   cool.position.set(-24, 3.5, -14);
   scene.add(cool);
+  // Fill lights so the night map reads at a glance: a cool wash over mid
+  // and a warm pool by the attackers' spawn. Without these the lanes went
+  // muddy in the screenshots.
+  const midFill = new THREE.PointLight(0x8fb4d8, 25, 26, 1.7);
+  midFill.position.set(0, 5, 0);
+  scene.add(midFill);
+  const spawnWarm = new THREE.PointLight(0xffd9a0, 20, 18, 1.7);
+  spawnWarm.position.set(0, 4, 18);
+  scene.add(spawnWarm);
   // Ceiling lamps down the lanes, so the mid-map reads at a glance.
   for (const [lx, lz] of [[0, 8], [-20, -2], [20, -2], [0, -14]]) {
-    const lamp = new THREE.PointLight(0xffd9a0, 22, 17, 1.7);
+    const lamp = new THREE.PointLight(0xffd9a0, 30, 17, 1.7);
     lamp.position.set(lx, 4.4, lz);
     scene.add(lamp);
     const shade = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.12, 0.5),
@@ -156,7 +165,7 @@ export function buildWorld(scene) {
     if (c.kind === 'furnace') {
       const mouth = new THREE.Mesh(
         new THREE.PlaneGeometry(4.5, 2.2),
-        new THREE.MeshStandardMaterial({ color: 0x1a0d05, emissive: PAL.ember, emissiveIntensity: 2.2, roughness: 0.6 }),
+        new THREE.MeshStandardMaterial({ color: 0x1a0d05, emissive: PAL.ember, emissiveIntensity: 3.0, roughness: 0.6 }),
       );
       mouth.position.set(c.x, 1.6, c.z + c.d / 2 + 0.02);
       scene.add(mouth);
@@ -188,12 +197,26 @@ export function buildWorld(scene) {
   const markerA = markerLetter('A', PAL.amber, 24, -20.5);
   const markerB = markerLetter('B', PAL.blue, -24, -20.5);
   scene.add(markerA, markerB);
+  // Site floor rings: a painted objective circle in each site's team
+  // colour, so the sites read from across the map even before the
+  // letters do. The ring radius is the site radius (world.js SITES).
+  for (const key of ['A', 'B']) {
+    const s = SITES[key];
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(s.r - 0.35, s.r, 48),
+      new THREE.MeshStandardMaterial({ color: 0x111111, emissive: key === 'A' ? PAL.amber : PAL.blue, emissiveIntensity: 0.9, roughness: 0.8 }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(s.x, 0.02, s.z);
+    ring.receiveShadow = true;
+    scene.add(ring);
+  }
   return { sun, glow, cool };
 }
 
 function markerLetter(letter, color, x, z) {
   const g = new THREE.Group();
-  const m = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: color, emissiveIntensity: 1.6 });
+  const m = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: color, emissiveIntensity: 2.4 });
   // A crude but readable letter from boxes: two posts + crossbar (A), or
   // three bars (B). Good enough at 20 m in the dark.
   const post = new THREE.BoxGeometry(0.35, 2.2, 0.35);

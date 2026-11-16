@@ -35,6 +35,9 @@ export function updateBomb(dt, input) {
       if (b.progress >= PLANT_TIME) {
         b.state = 'planted'; b.timer = BOMB_TIME; b.progress = 0;
         b.x = c.pos.x; b.z = c.pos.z;
+        // Planting pays: +$300 to the carrier, as the economy promises.
+        c.money += 300;
+        if (c === player()) S.playerMoney = c.money;
         pushFeed(`Charge planted at site ${site}`, 'a');
         pushRadio(`Charge planted at ${site === 'A' ? 'Furnace' : 'Casting'} — hold it!`);
       }
@@ -54,6 +57,9 @@ export function updateBomb(dt, input) {
       if (Math.floor(b.progress * 2) !== Math.floor((b.progress - dt) * 2)) sfx.defuseBeep();
       if (b.progress >= DEFUSE_TIME) {
         b.state = 'defused'; b.progress = 0;
+        // Defusing pays: +$300 to the defuser, as the economy promises.
+        def.money += 300;
+        if (def === player()) S.playerMoney = def.money;
         pushFeed('Charge defused', 'b');
         return 'defused';
       }

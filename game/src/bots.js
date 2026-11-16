@@ -8,23 +8,19 @@
 import { S, rng, EYE_STAND, EYE_CROUCH, BOT_SPEED, TICK } from './state.js';
 import { nearestNode, findPath, nodePos, nodesByTag, segmentBlocked, moveCollide, SITES } from './world.js';
 import { fireWeapon, smokeBlocks, eyeOf } from './weapon.js';
+import { inSite } from './bomb.js';
+import { planRound, orderFor, postPlantOrder, updateExecute, defuseCover } from './tactics.js';
 
 const BOT_NAMES_A = ['Cinder', 'Tongs', 'Anvil', 'Ferro'];
 const BOT_NAMES_B = ['Slag', 'Mold', 'Crucible', 'Soot', 'Kiln'];
 
 // ---- round plans: who goes where, decided once per round ----
+// Attackers get the execute plan (site + named roles + phases) from
+// tactics.js; defenders hold the sites, one floats mid and rotates.
 export function assignPlans() {
   const attackers = S.entities.filter((e) => e.team === 'A' && e.bot && e.alive);
   const defenders = S.entities.filter((e) => e.team === 'B' && e.bot && e.alive);
-  const mainSite = rng.pick(['A', 'B']);
-  const otherSite = mainSite === 'A' ? 'B' : 'A';
-  attackers.forEach((b, i) => {
-    const br = b.brain;
-    br.site = i < 2 ? mainSite : otherSite;
-    br.role = i === 0 ? 'carrier' : 'escort';
-    br.state = 'advance';
-    br.path = []; br.pathI = 0;
-  });
+  planRound(attackers);
   // Defenders: two hold each site, one floats mid and rotates to trouble.
   defenders.forEach((b, i) => {
     const br = b.brain;
@@ -76,11 +72,6 @@ function perceive(b, dt) {
       br.target = best;
       br.lastSeen = { x: best.pos.x, z: best.pos.z };
       br.lastSeenAt = S.time;
-      // Radio callout so the player hears the team working.
-      if (rng.chance(0.5)) {
-        const site = best.pos.z < -12 ? (best.pos.x > 0 ? 'A' : 'B') : 'mid';
-        // Only call out sometimes; the feed is not a chat log.
-      }
     }
     br.lastSeen = { x: best.pos.x, z: best.pos.z };
     br.lastSeenAt = S.time;
@@ -203,6 +194,22 @@ export function updateBot(b, dt, fx) {
   const bombPlanted = S.bomb.state === 'planted';
   const mySite = br.site;
 
+  // The objective outranks a gunfight: a carrier standing in its site
+  // plants instead of duelling, and a defender standing on the charge
+  // defuses instead of duelling. Before this fix the engage branch below
+  // stole the tick, so a carrier that could see anyone never planted
+  // and a defuser that could see anyone never defused.
+  if (b.team === 'A' && S.bomb.state === 'carried' && S.bomb.carrier === b &&
+      mySite && inSite(b, mySite)) {
+    br.state = 'plant'; b.vel.x = 0; b.vel.z = 0;
+    return;
+  }
+  if (b.team === 'B' && bombPlanted &&
+      Math.hypot(b.pos.x - S.bomb.x, b.pos.z - S.bomb.z) < 2.2) {
+    br.state = 'defuse'; b.vel.x = 0; b.vel.z = 0;
+    return;
+  }
+
   if (target) {
     br.state = 'engage';
     engage(b, target, dt, fx);
@@ -212,21 +219,64 @@ export function updateBot(b, dt, fx) {
   // No visible enemy: follow the plan.
   if (b.team === 'B' && bombPlanted) {
     // Defenders rotate to the planted site and defuse (bomb.js runs the
-    // channel once a defender stands on the bomb).
+    // channel once a defender stands on the bomb). Smoke first: a
+    // defender with a smoke throws it on the charge, so the defuse
+    // happens behind cover. And the rotate walks to the bomb itself, not
+    // just the site node — the charge can sit up to 6.5 m from the site
+    // centre, and the defuse channel needs a defender within 2.2 m of
+    // it, so standing on the node alone never defused.
+    defuseCover(b, dt, fx);
     if (br.state !== 'defuse') {
-      if (!br.path || br.pathI >= br.path.length) setPath(b, siteNode(S.bomb.site));
-      if (followPath(b, dt)) br.state = 'defuse';
+      const goal = nearestNode(S.bomb.x, S.bomb.z);
+      if (!br.path || br.pathI >= br.path.length) setPath(b, goal);
+      if (followPath(b, dt)) {
+        // At the nearest node: close the last metres to the charge itself.
+        const d = Math.hypot(S.bomb.x - b.pos.x, S.bomb.z - b.pos.z);
+        if (d > 1.5) {
+          const dx = S.bomb.x - b.pos.x, dz = S.bomb.z - b.pos.z;
+          b.yaw = turnToward(b.yaw, Math.atan2(-dx, -dz), dt * 6);
+          moveCollide(b.pos, 0.4, -Math.sin(b.yaw) * BOT_SPEED * dt, -Math.cos(b.yaw) * BOT_SPEED * dt);
+          b.vel.x = -Math.sin(b.yaw) * BOT_SPEED; b.vel.z = -Math.cos(b.yaw) * BOT_SPEED;
+        } else br.state = 'defuse';
+      }
     }
     return;
   }
 
-  if (b.team === 'A' && S.bomb.state === 'carried' && S.bomb.carrier === b) {
-    // The carrier walks to its site and plants (bomb.js runs the channel).
-    if (br.state !== 'plant') {
-      if (!br.path || br.pathI >= br.path.length) setPath(b, siteNode(mySite));
-      if (followPath(b, dt)) br.state = 'plant';
+  if (b.team === 'A' && S.bomb.state === 'carried') {
+    // The execute: rally, smoke, entry, plant — one team, one timing.
+    // orderFor returns the current execute order, or null once the plan
+    // no longer applies (the carrier is the player, the plan is done).
+    const order = orderFor(b);
+    if (order) {
+      if (order.kind === 'stand') { b.vel.x = 0; b.vel.z = 0; return; }
+      if (!br.path || br.pathI >= br.path.length) setPath(b, order.node);
+      if (followPath(b, dt) && order.yaw !== undefined) {
+        b.yaw = order.yaw; br.state = 'hold';
+      }
+      return;
     }
-    return;
+    // No execute order: the carrier walks to its site and plants
+    // (bomb.js runs the channel once it stands in the site).
+    if (S.bomb.carrier === b) {
+      if (br.state !== 'plant') {
+        if (!br.path || br.pathI >= br.path.length) setPath(b, siteNode(mySite));
+        if (followPath(b, dt)) br.state = 'plant';
+      }
+      return;
+    }
+  }
+  if (b.team === 'A' && S.bomb.state === 'planted') {
+    // Post-plant: take a hold on the site edge and watch the retake
+    // routes (tactics.js picks the node and the outward yaw).
+    const order = postPlantOrder(b);
+    if (order) {
+      if (!br.path || br.pathI >= br.path.length) setPath(b, order.node);
+      if (followPath(b, dt) && order.yaw !== undefined) {
+        b.yaw = order.yaw; br.state = 'hold';
+      }
+      return;
+    }
   }
   if (b.team === 'A' && S.bomb.state === 'dropped') {
     // Nearest alive attacker fetches the dropped charge.
@@ -280,6 +330,8 @@ export function updateBot(b, dt, fx) {
 }
 
 export function updateBots(dt, fx) {
+  // The execute phase machine runs once per tick, before any bot acts.
+  if (S.mode === 'play') updateExecute(dt, fx);
   for (const e of S.entities) if (e.bot) updateBot(e, dt, fx);
 }
 

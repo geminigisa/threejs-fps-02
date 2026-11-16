@@ -115,7 +115,7 @@ export function updateHUD() {
   // Bomb status line + plant/defuse progress.
   const b = S.bomb;
   if (b.state === 'planted') {
-    els.bomb.textContent = `CHARGE PLANTED — ${Math.ceil(b.timer)}s — ${b.site === 'A' ? 'FURNACE' : 'CASTING'}`;
+    els.bomb.textContent = `CHARGE PLANTED — ${Math.ceil(b.timer)}s — ${b.site === 'A' ? 'FURNACE' : 'CASTING'}${b.defuser ? ` · ${b.defuser.name} DEFUSING` : ''}`;
     els.bomb.style.color = '#e5484d';
   } else if (b.state === 'carried' && b.carrier === p) {
     els.bomb.textContent = `YOU CARRY THE CHARGE — plant at ${'A: FURNACE · B: CASTING'}`;

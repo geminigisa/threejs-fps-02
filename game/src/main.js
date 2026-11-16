@@ -20,9 +20,11 @@ import { keys, initInput, requestLock } from './input.js';
 import { S, rng, resetMatch, makeEntity, player, TICK } from './state.js';
 import { PAL } from './palette.js';
 import { setupShot, shotInput, SHOT_STEPS } from './shots.js';
+import { setupScenario, scenarioTick } from './scenario.js';
 
 const params = new URLSearchParams(location.search);
 const SHOT = params.get('shot');
+const SCENARIO = params.get('scenario');
 const SEED = parseInt(params.get('seed') || '1337', 10) || 1337;
 
 let renderer, scene, camera, clock;
@@ -168,7 +170,11 @@ const fx = {
     }
     g.position.set(land.x, 0, land.z);
     scene.add(g);
-    const rec = S.smokes[S.smokes.length - 1];
+    // The visual follows the sim record at this spot (a staged smoke from
+    // shots.js has no throw call, so match by position, not by recency).
+    const rec = S.smokes.find((s) => !smokeSprites.has(s) &&
+      Math.abs(s.x - land.x) < 0.01 && Math.abs(s.z - land.z) < 0.01)
+      || S.smokes[S.smokes.length - 1];
     if (rec) smokeSprites.set(rec, g);
   },
 };
@@ -204,7 +210,14 @@ function step(dt) {
   // NOT live inside the play/buy block above — that stranded the game in
   // 'end' forever after round 1.)
   updateRounds(dt);
-  // Expire smoke visuals with their sim clock.
+  // A deterministic test scenario (only with ?scenario=) stages each round
+  // and records the bomb/round transitions for the playtest harness.
+  scenarioTick();
+  // Expire smoke visuals with their sim clock, and give a visual to any
+  // sim smoke that has none yet (a staged smoke from shots.js).
+  for (const rec of S.smokes) {
+    if (!smokeSprites.has(rec)) fx.smoke({ x: rec.x, z: rec.z });
+  }
   for (const [rec, g] of smokeSprites) {
     if (S.time > rec.until) { scene.remove(g); smokeSprites.delete(rec); }
   }
@@ -309,6 +322,15 @@ function boot() {
     // Deterministic screenshot: stage the scene, run fixed steps, freeze.
     S.mode = 'play';
     setupShot(SHOT, SEED);
+  }
+  if (SCENARIO) {
+    // Deterministic playtest: start round 1 immediately (headless has no
+    // menu click) and let scenario.js stage each round and log the run.
+    // Normal play never takes this path: no ?scenario=, no staging.
+    S.buyOpen = true;
+    startRound();
+    showBanner(`SCENARIO ${SCENARIO}`, 'plant-defuse live verification');
+    setupScenario(SCENARIO);
   }
   // Debug hook: the live state, for playtesting (never used by the game).
   window.__cinderworks = S;
